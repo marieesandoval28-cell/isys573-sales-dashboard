@@ -68,3 +68,25 @@ Required columns: `date`, `region`, `category`, `product`,
 - NEVER: Modify data/sales.csv
 - NEVER: Add a web server (Flask, FastAPI, Streamlit) — output must stay HTML
 - NEVER: Use deprecated Plotly APIs (use `plotly.express` or `plotly.graph_objects`)
+
+---
+
+# Planned Feature Request
+
+## Title
+Add dark mode toggle to dashboard
+
+## Goal
+Add a dark mode toggle feature to improve usability and accessibility of the sales dashboard.
+
+## Requirements
+- User can switch between light and dark mode
+- Charts and text remain readable
+- Existing functionality should still work
+- dashboard.html should still generate successfully
+
+## Acceptance Criteria
+- Toggle button works
+- Dashboard colors update correctly
+- Charts still display properly
+- No errors occur when running python dashboard.py
