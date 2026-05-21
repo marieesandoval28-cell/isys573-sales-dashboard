@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from dashboard import load_data, build_region_bar, build_monthly_line, \
-                      build_category_pie, build_top_products
+                      build_category_pie, build_top_products, build_html
 
 DATA_PATH = Path(__file__).parent.parent / "data" / "sales.csv"
 
@@ -109,3 +109,26 @@ class TestTopProducts:
         fig = build_top_products(df)
         revenues = list(fig.data[0].x)
         assert revenues == sorted(revenues)
+
+
+class TestDashboardHtml:
+    def test_includes_dark_mode_toggle(self, df):
+        html = build_html(df)
+
+        assert 'id="themeToggle"' in html
+        assert 'onclick="toggleTheme()"' in html
+        assert 'body data-theme="light"' in html
+
+    def test_includes_theme_chart_rendering(self, df):
+        html = build_html(df)
+
+        assert "function themeLayout(layout)" in html
+        assert "function toggleTheme()" in html
+        assert "renderChart(\"chartRegion\", d.region)" in html
+        assert "renderChart(\"chartTopProducts\", d.top_products)" in html
+
+    def test_embeds_plotly_for_static_html(self, df):
+        html = build_html(df)
+
+        assert '<script src="https://cdn.plot.ly' not in html
+        assert "window.Plotly" in html

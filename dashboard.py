@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.offline import get_plotlyjs
 import plotly.express as px
 from plotly.subplots import make_subplots
 
@@ -53,13 +54,16 @@ def build_region_bar(df: pd.DataFrame) -> go.Figure:
         .sort_values("revenue", ascending=True)   # ascending so largest is at top
     )
     colors = ["#9B59B6", "#02C39A", "#F4A261", "#00B4D8"]
-    fig = go.Figure(go.Bar(
-        x=summary["revenue"],
-        y=summary["region"],
-        orientation="h",
-        marker_color=colors[:len(summary)],
-        hovertemplate="<b>%{y}</b><br>Revenue: $%{x:,.0f}<extra></extra>",
-    ))
+    fig = go.Figure()
+    for index, row in summary.reset_index(drop=True).iterrows():
+        fig.add_trace(go.Bar(
+            x=[row["revenue"]],
+            y=[row["region"]],
+            orientation="h",
+            marker_color=colors[index % len(colors)],
+            hovertemplate="<b>%{y}</b><br>Revenue: $%{x:,.0f}<extra></extra>",
+            showlegend=False,
+        ))
     fig.update_layout(
         title="Revenue by Region",
         plot_bgcolor="white",
@@ -203,6 +207,7 @@ def build_html(df: pd.DataFrame) -> str:
     # Serialize all chart data to embed in HTML
     import json
     chart_json = json.dumps(chart_data)
+    plotly_js = get_plotlyjs()
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -210,51 +215,104 @@ def build_html(df: pd.DataFrame) -> str:
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>ISYS 573 · Retail Sales Dashboard</title>
-  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <script>{plotly_js}</script>
   <style>
     *{{box-sizing:border-box;margin:0;padding:0;}}
-    body{{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f9;color:#1a1a2e;}}
+    :root{{
+      color-scheme:light dark;
+    }}
+    body{{
+      --bg:#f4f6f9;
+      --surface:#fff;
+      --surface-strong:#f9fbfd;
+      --text:#1a1a2e;
+      --muted:#666;
+      --subtle:#8DA9C4;
+      --border:#e0e6ed;
+      --shadow:0 2px 8px rgba(0,0,0,.07);
+      --focus:#2196F3;
+      font-family:'Segoe UI',Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      transition:background .2s ease,color .2s ease;
+    }}
+    body[data-theme="dark"]{{
+      --bg:#111827;
+      --surface:#1f2937;
+      --surface-strong:#273449;
+      --text:#f3f4f6;
+      --muted:#cbd5e1;
+      --subtle:#bfdbfe;
+      --border:#374151;
+      --shadow:0 2px 12px rgba(0,0,0,.28);
+      --focus:#60A5FA;
+    }}
     header{{background:linear-gradient(135deg,#0D1B2A 0%,#1E3A5F 100%);
             color:#fff;padding:24px 32px;display:flex;
             align-items:center;justify-content:space-between;}}
     header h1{{font-size:22px;font-weight:700;}}
-    header p{{font-size:13px;color:#8DA9C4;margin-top:4px;}}
-    .filter-bar{{background:#fff;padding:14px 32px;
-                 border-bottom:1px solid #e0e6ed;
-                 display:flex;align-items:center;gap:16px;}}
-    .filter-bar label{{font-size:14px;font-weight:600;color:#444;}}
+    header p{{font-size:13px;color:var(--subtle);margin-top:4px;}}
+    .header-meta{{font-size:12px;color:var(--subtle);text-align:right;}}
+    .filter-bar{{background:var(--surface);padding:14px 32px;
+                 border-bottom:1px solid var(--border);
+                 display:flex;align-items:center;gap:16px;flex-wrap:wrap;}}
+    .filter-bar label{{font-size:14px;font-weight:600;color:var(--text);}}
+    .filter-group{{display:flex;align-items:center;gap:10px;}}
+    .filter-status{{font-size:13px;color:var(--muted);margin-left:8px;}}
     select{{padding:8px 14px;border:1.5px solid #cdd8e3;border-radius:6px;
-            font-size:14px;background:#fff;cursor:pointer;color:#1a1a2e;}}
-    select:focus{{outline:none;border-color:#2196F3;}}
+            font-size:14px;background:var(--surface-strong);cursor:pointer;
+            color:var(--text);}}
+    select:focus{{outline:none;border-color:var(--focus);}}
+    .theme-toggle{{margin-left:auto;padding:8px 14px;border:1.5px solid var(--border);
+                   border-radius:6px;background:var(--surface-strong);color:var(--text);
+                   cursor:pointer;font-size:14px;font-weight:600;}}
+    .theme-toggle:hover{{border-color:var(--focus);}}
+    .theme-toggle:focus{{outline:2px solid var(--focus);outline-offset:2px;}}
     .kpis{{display:flex;gap:16px;flex-wrap:wrap;padding:24px 32px 8px;}}
+    .kpi-card{{background:var(--surface);border-radius:8px;padding:18px 22px;
+               box-shadow:var(--shadow);text-align:center;border-top:4px solid;
+               flex:1;min-width:150px;}}
+    .kpi-label{{font-size:12px;color:var(--muted);font-weight:600;
+                text-transform:uppercase;letter-spacing:.4px;}}
+    .kpi-value{{font-size:26px;font-weight:700;color:var(--text);margin-top:5px;}}
     .charts-grid{{display:grid;
                   grid-template-columns:1fr 1fr;
                   gap:20px;padding:16px 32px 32px;}}
-    .chart-card{{background:#fff;border-radius:10px;
-                 padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.06);}}
-    @media(max-width:800px){{.charts-grid{{grid-template-columns:1fr;}}}}
-    footer{{text-align:center;padding:16px;font-size:12px;color:#999;
-            border-top:1px solid #e0e6ed;background:#fff;}}
+    .chart-card{{background:var(--surface);border-radius:10px;
+                 padding:8px;box-shadow:var(--shadow);}}
+    @media(max-width:800px){{
+      header{{align-items:flex-start;gap:14px;flex-direction:column;}}
+      .header-meta{{text-align:left;}}
+      .charts-grid{{grid-template-columns:1fr;}}
+      .theme-toggle{{margin-left:0;}}
+    }}
+    footer{{text-align:center;padding:16px;font-size:12px;color:var(--muted);
+            border-top:1px solid var(--border);background:var(--surface);}}
   </style>
 </head>
-<body>
+<body data-theme="light">
 
 <header>
   <div>
     <h1>🛒 Retail Sales Dashboard</h1>
     <p>ISYS 573 · Generative AI and LLMs for Business · SFSU</p>
   </div>
-  <div style="font-size:12px;color:#8DA9C4;text-align:right;">
+  <div class="header-meta">
     Data: 2024 Retail Sales<br>500 transactions · 4 regions · 6 categories
   </div>
 </header>
 
 <div class="filter-bar">
-  <label for="qFilter">📅 Filter by Quarter:</label>
-  <select id="qFilter" onchange="applyFilter(this.value)">
-    {"".join(f'<option value="{q}">{q}</option>' for q in quarters)}
-  </select>
-  <span id="filterLabel" style="font-size:13px;color:#666;margin-left:8px;"></span>
+  <div class="filter-group">
+    <label for="qFilter">📅 Filter by Quarter:</label>
+    <select id="qFilter" onchange="applyFilter(this.value)">
+      {"".join(f'<option value="{q}">{q}</option>' for q in quarters)}
+    </select>
+    <span id="filterLabel" class="filter-status"></span>
+  </div>
+  <button class="theme-toggle" id="themeToggle" type="button"
+          aria-label="Switch to dark mode" aria-pressed="false"
+          onclick="toggleTheme()">Dark mode</button>
 </div>
 
 <div class="kpis" id="kpiRow"></div>
@@ -278,6 +336,63 @@ const DATA = {chart_json};
 const KPI_COLORS = ["#2196F3","#4CAF50","#FF9800","#9C27B0"];
 const KPI_LABELS = ["Total Revenue","Transactions","Avg Transaction","Top Region"];
 const KPI_KEYS   = ["total_revenue","total_orders","avg_order","top_region"];
+const THEME_COLORS = {{
+  light: {{
+    paper: "#fff",
+    plot: "#fff",
+    text: "#1a1a2e",
+    grid: "#e5e7eb",
+    zero: "#d1d5db"
+  }},
+  dark: {{
+    paper: "#1f2937",
+    plot: "#1f2937",
+    text: "#f3f4f6",
+    grid: "#374151",
+    zero: "#4b5563"
+  }}
+}};
+
+let currentTheme = "light";
+
+function themedAxis(axis, colors) {{
+  return {{
+    ...axis,
+    color: colors.text,
+    gridcolor: colors.grid,
+    linecolor: colors.zero,
+    zerolinecolor: colors.zero,
+    title: {{
+      ...(axis && axis.title ? axis.title : {{}}),
+      font: {{color: colors.text}}
+    }}
+  }};
+}}
+
+function themeLayout(layout) {{
+  const colors = THEME_COLORS[currentTheme];
+  return {{
+    ...layout,
+    paper_bgcolor: colors.paper,
+    plot_bgcolor: colors.plot,
+    font: {{...(layout.font || {{}}), color: colors.text}},
+    title: {{
+      ...(layout.title || {{}}),
+      font: {{...((layout.title || {{}}).font || {{}}), color: colors.text}}
+    }},
+    legend: {{
+      ...(layout.legend || {{}}),
+      font: {{...((layout.legend || {{}}).font || {{}}), color: colors.text}}
+    }},
+    xaxis: themedAxis(layout.xaxis || {{}}, colors),
+    yaxis: themedAxis(layout.yaxis || {{}}, colors)
+  }};
+}}
+
+function renderChart(elementId, chartJson) {{
+  const figure = JSON.parse(chartJson);
+  Plotly.react(elementId, figure.data, themeLayout(figure.layout), {{responsive:true}});
+}}
 
 function applyFilter(quarter) {{
   const d = DATA[quarter];
@@ -285,26 +400,40 @@ function applyFilter(quarter) {{
   // KPI cards
   const kpiRow = document.getElementById("kpiRow");
   kpiRow.innerHTML = KPI_KEYS.map((k,i) => `
-    <div style="background:#fff;border-radius:8px;padding:18px 22px;
-                box-shadow:0 2px 8px rgba(0,0,0,.07);text-align:center;
-                border-top:4px solid ${{KPI_COLORS[i]}};flex:1;min-width:150px;">
-      <div style="font-size:12px;color:#888;font-weight:600;
-                  text-transform:uppercase;letter-spacing:.4px;">${{KPI_LABELS[i]}}</div>
-      <div style="font-size:26px;font-weight:700;color:#1a1a2e;margin-top:5px;">${{d[k]}}</div>
+    <div class="kpi-card" style="border-top-color:${{KPI_COLORS[i]}};">
+      <div class="kpi-label">${{KPI_LABELS[i]}}</div>
+      <div class="kpi-value">${{d[k]}}</div>
     </div>`).join("");
 
   // Charts
-  Plotly.react("chartRegion",      JSON.parse(d.region).data,      JSON.parse(d.region).layout,      {{responsive:true}});
-  Plotly.react("chartMonthly",     JSON.parse(d.monthly).data,     JSON.parse(d.monthly).layout,     {{responsive:true}});
-  Plotly.react("chartCategory",    JSON.parse(d.category).data,    JSON.parse(d.category).layout,    {{responsive:true}});
-  Plotly.react("chartTopProducts", JSON.parse(d.top_products).data, JSON.parse(d.top_products).layout, {{responsive:true}});
+  renderChart("chartRegion", d.region);
+  renderChart("chartMonthly", d.monthly);
+  renderChart("chartCategory", d.category);
+  renderChart("chartTopProducts", d.top_products);
 
   document.getElementById("filterLabel").textContent =
     quarter === "Full Year" ? "Showing all 2024 data" : `Showing ${{quarter}} 2024 only`;
 }}
 
+function setTheme(theme) {{
+  currentTheme = theme;
+  document.body.dataset.theme = theme;
+
+  const toggle = document.getElementById("themeToggle");
+  const isDark = theme === "dark";
+  toggle.textContent = isDark ? "Light mode" : "Dark mode";
+  toggle.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+  toggle.setAttribute("aria-pressed", String(isDark));
+
+  applyFilter(document.getElementById("qFilter").value);
+}}
+
+function toggleTheme() {{
+  setTheme(currentTheme === "dark" ? "light" : "dark");
+}}
+
 // Initialise on load
-applyFilter("Full Year");
+setTheme("light");
 </script>
 </body>
 </html>"""
